@@ -1,0 +1,10 @@
+# Jupyter Notebook 체크포인트
+.ipynb_checkpoints/
+
+# VS Code 설정 폴더
+.vscode/
+
+# Python 가상환경 및 캐시 (필요시 추가)
+__pycache__/
+*.py[cod]
+.anaconda/
