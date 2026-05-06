@@ -7,4 +7,6 @@
 # Python 가상환경 및 캐시 (필요시 추가)
 __pycache__/
 *.py[cod]
-.anaconda/
+ 
+# VS Code 워크스페이스 설정 파일
+H26.code-workspace
