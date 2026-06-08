@@ -29,11 +29,17 @@ def main():
     if target_site == "saramin":
         output_file = "./data/saramin_dataset.csv"
         print(f"🎯 대량 수집 대상 사이트: [사람인]")
-        scrape_saramin(max_pages=max_pages, filename=output_file)        
+        scrape_saramin(max_pages=max_pages, filename=output_file)
+        
+    elif target_site == "jumpit":  # 💡 점핏 분기 추가
+        output_file = "jumpit_dataset.csv"
+        print(f"🎯 대량 수집 대상 사이트: [점핏]")
+        # 점핏 API는 1페이지당 16건씩 기본 호출됩니다.
+        scrape_jumpit(max_pages=max_pages, filename=output_file)
         
     else:
         print(f"❌ '{target_site}'은(는) 지원하지 않는 사이트 카테고리입니다.")
-        print("   현재 지원 목록: saramin")
+        print("   현재 지원 목록: saramin, jumpit")
 
 if __name__ == "__main__":
     main()
