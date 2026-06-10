@@ -16,7 +16,6 @@ def scrape_saramin(max_pages, filename):
     
     if os.path.exists(filename):
         try:
-            # 쉼표 충돌로 인한 에러 방지를 위해 기존 파일을 읽을 때 엔진을 파이썬으로 지정
             existing_df = pd.read_csv(filename, encoding='utf-8-sig', on_bad_lines='skip')
             collected_ids = set(str(row['공고번호']) for row in existing_df.to_dict('records') if pd.notna(row['공고번호']))
             print(f"🔄 기존 파일('{filename}') 발견: 현재 {len(collected_ids)}건의 공고를 기억하고 이어서 수집합니다.")
@@ -28,7 +27,7 @@ def scrape_saramin(max_pages, filename):
     data_list = []
     print(f"🚀 [사람인] 총 {max_pages}페이지 대량 수집을 시작합니다.")
 
-    start_page = 900
+    start_page = 601
     for page in range(start_page, max_pages + 1):
         print(f"⏳ [사람인] {page}/{max_pages} 페이지 훑는 중... (기록된 총 유니크 건수: {len(collected_ids)}건)")
         url = f"https://www.saramin.co.kr/zf_user/search/recruit?searchword=IT&recruitPage={page}&recruitPageCount=40"
@@ -63,19 +62,25 @@ def scrape_saramin(max_pages, filename):
                     if not job_id or str(job_id) in collected_ids:
                         continue
                     
-                    # [텍스트 오염 방지] 제목과 스택 안의 줄바꿈이나 문자열 노이즈 제거
+                    conditions = r.select('div.job_condition > span')
+                    
+                    location_text = conditions[0].text.strip() if len(conditions) > 0 else ""
+                    experience_text = conditions[1].text.strip() if len(conditions) > 1 else ""
+                    location_text = location_text.replace(',', ' ').replace('"', '')
+                    experience_text = experience_text.replace(',', ' ').replace('"', '')
+
                     title_text = title_tag.text.strip().replace('"', '').replace('\n', ' ')
                     company_text = company_tag.text.strip().replace('"', '').replace('\n', ' ')
                     
                     sectors = [s.text.strip() for s in r.select('div.job_sector > a')]
-                    # 💡 텍스트 마이닝할 때 쉼표(,) 때문에 CSV 열이 깨지는 걸 막기 위해 슬래시(/)나 공백으로 치환해주는 게 제일 안전해!
                     tech_stack = " / ".join(sectors)
                     
-                    # 딱 필요한 4개 컬럼만 빌드
                     data_list.append({
                         '공고번호': job_id, 
                         '회사명': company_text,
                         '공고제목': title_text, 
+                        '지역': location_text,
+                        '경력': experience_text,
                         '기술스택/분야': tech_stack
                     })
                     collected_ids.add(str(job_id))
@@ -83,12 +88,10 @@ def scrape_saramin(max_pages, filename):
                 except Exception:
                     continue
             
-            # --- [실시간 백업] ---
             if page_new_items > 0:
                 df_new = pd.DataFrame(data_list)
                 
                 if os.path.exists(filename):
-                    # 중요: 쉼표가 포함된 문자열이 깨지지 않도록 lineterminator와 quoting 신경 쓰기
                     df_new.to_csv(filename, mode='a', index=False, header=False, encoding='utf-8-sig')
                 else:
                     df_new.to_csv(filename, mode='w', index=False, header=True, encoding='utf-8-sig')
@@ -101,5 +104,4 @@ def scrape_saramin(max_pages, filename):
             print(f"네트워크 에러: {e}")
             time.sleep(5)
             
-    # 에러가 났던 판다스 전체 load 검증부 주석 처리 (더 이상 ParserError 안 터짐)
     print(f"✨ [사람인] 지정된 {max_pages}페이지까지 수집 및 파일 저장 완료!")
