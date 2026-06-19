@@ -27,7 +27,7 @@ def scrape_saramin(max_pages, filename):
     data_list = []
     print(f"🚀 [사람인] 총 {max_pages}페이지 대량 수집을 시작합니다.")
 
-    start_page = 601
+    start_page = 501
     for page in range(start_page, max_pages + 1):
         print(f"⏳ [사람인] {page}/{max_pages} 페이지 훑는 중... (기록된 총 유니크 건수: {len(collected_ids)}건)")
         url = f"https://www.saramin.co.kr/zf_user/search/recruit?searchword=IT&recruitPage={page}&recruitPageCount=40"
