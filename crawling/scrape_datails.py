@@ -36,17 +36,27 @@ def scrape_job_descriptions(input_filename, output_filename, limit_count):
         except Exception:
             pass
 
+    df_todo = df_input[~df_input['공고번호'].astype(str).isin(done_ids)]
+    print(f"🔍 아직 원문이 수집되지 않은 남은 공고는 총 {len(df_todo)}건입니다.")
+    
+    if len(df_todo) == 0:
+        print("✨ 이미 모든 공고의 원문 수집이 완료되어 새로 긁을 데이터가 없습니다!")
+        return
+    
+    if limit_count is not None:
+        df_target = df_todo.head(limit_count)
+        print(f"🎯 남은 {len(df_todo)}건 중 상위 {len(df_target)}개 공고에 대해 스크래핑을 준비합니다.")
+    else:
+        df_target = df_todo
+        print(f"🚀 남은 {len(df_todo)}건 전체 공고에 대해 스크래핑을 준비합니다.")
+
     print("🚀 공고 원문 수집을 시작합니다... (공고번호, 원문 2개 컬럼만 저장)")
     
     data_list = []
     
     # 3. 루프 돌며 원문 긁기
-    for idx, row in df_target.iterrows():
+    for idx, (_, row) in enumerate(df_target.iterrows()):
         job_id = str(row['공고번호'])
-        
-        # 이미 수집한 공고는 패스
-        if job_id in done_ids:
-            continue
             
         detail_url = f"https://www.saramin.co.kr/zf_user/jobs/relay/view-detail?rec_idx={job_id}"
         
@@ -112,7 +122,7 @@ if __name__ == "__main__":
     input_file = './data/saramin_dataset.csv'          # 원본 6개 컬럼 파일
     output_file = './data/saramin_descriptions.csv'       # 새로 만들 2개 컬럼 파일 (공고번호, 원문만 존재)
     
-    limit_count = 500 
+    limit_count = 5000 
     
     if len(sys.argv) > 1:
         try:
