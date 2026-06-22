@@ -4,6 +4,9 @@ from openai import OpenAI
 import time
 import os # 파일 존재 여부 확인을 위해 추가
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- 로깅(Logging) 설정 ---
 LOG_FILENAME = "lmstudio_processing.log"
@@ -16,10 +19,7 @@ logging.basicConfig(
     ]
 )
 # 1. LM Studio 로컬 서버와 연결
-client = OpenAI(
-    base_url="http://localhost:1234/v1", # LM Studio 기본 포트
-    api_key="lm-studio" # 아무 문자열이나 넣어도 됩니다
-)
+client = OpenAI()
 
 # 2. 시스템 프롬프트 세팅
 SYSTEM_PROMPT = """
@@ -87,12 +87,13 @@ def clean_saramin_text(text):
 def extract_info(job_text):
     try:
         response = client.chat.completions.create(
-            model="google/gemma-4-12b-qat", 
+            model="gpt-4o-mini", 
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": job_text}
             ],
             temperature=0.1, 
+            response_format={"type": "json_object"}
         )
         
         result_text = response.choices[0].message.content.strip()
@@ -136,6 +137,9 @@ logging.info(f"▶️ 남은 {len(df_to_process)}건의 데이터 처리를 시�
 
 # 실제 처리 루프
 for index, row in df_to_process.iterrows():
+    
+    start_time = time.time()
+    
     # 원본 데이터의 인덱스는 그대로 유지되므로 진행률 표시에 사용
     current_num = index + 1 
     logging.info(f"[{current_num}/{total_rows}] 처리 중...")
@@ -153,8 +157,15 @@ for index, row in df_to_process.iterrows():
         pd.DataFrame(results).to_json(OUTPUT_FILE, orient='records', force_ascii=False, indent=4)
         logging.info(f"💾 [{current_num}/{total_rows}] 데이터 중간 저장 완료!")
     
-    # 로컬 GPU 과부하 방지를 위해 약간의 딜레이 추가
-    time.sleep(0.5) 
+    elapsed_time = time.time() - start_time  # 1건 처리에 실제로 걸린 시간 (초)
+    MIN_CYCLE_TIME = 0.65  # 1분당 최대 100개 미만으로 제한하기 위한 최소 주기 (60초 / 92개 기준)
+    
+    # 만약 처리가 너무 빨리 끝나서 최소 주기(0.65초)보다 덜 걸렸다면 그 차이만큼 대기
+    if elapsed_time < MIN_CYCLE_TIME:
+        time.sleep(MIN_CYCLE_TIME - elapsed_time)
+    else:
+        # 가끔씩 발생하는 API 부하 분산을 위해 최소한의 미세 딜레이 추가
+        time.sleep(0.05)
 
 # 4. 루프 종료 후 최종 결과 저장
 pd.DataFrame(results).to_json(OUTPUT_FILE, orient='records', force_ascii=False, indent=4)
