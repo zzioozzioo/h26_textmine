@@ -108,7 +108,7 @@ def extract_info(job_text):
         return None
 
 # --- 설정 ---
-INPUT_FILE = './data/saramin_descriptions.csv'
+INPUT_FILE = './data/saramin_descriptions_최최최수종.csv'
 OUTPUT_FILE = './data/extracted_saramin_jobs_result.json'
 SAVE_INTERVAL = 50 # 50건마다 파일에 중간 저장
 
@@ -116,33 +116,42 @@ SAVE_INTERVAL = 50 # 50건마다 파일에 중간 저장
 df = pd.read_csv(INPUT_FILE)
 total_rows = len(df)
 results = []
-processed_count = 0
 
-# 중간 저장된 파일이 있다면 불러와서 이어하기 세팅
+processed_ids = set()
+
 if os.path.exists(OUTPUT_FILE):
     try:
         with open(OUTPUT_FILE, 'r', encoding='utf-8') as f:
             results = json.load(f)
-            processed_count = len(results)
-        logging.info(f"🔄 기존에 저장된 {processed_count}건의 데이터를 불러와 이어서 시작합니다.")
+            
+            # 🔥 [수정] 이미 처리된 데이터에서 '공고번호'만 추출하여 저장
+            # CSV의 컬럼명에 맞게 '공고번호'를 수정하세요 (예: 'id', 'job_id' 등)
+            for item in results:
+                if '공고번호' in item:
+                    processed_ids.add(item['공고번호'])
+                    
+        logging.info(f"🔄 기존 저장 파일에서 {len(processed_ids)}개의 고유 공고를 확인했습니다. 이어서 시작합니다.")
     except Exception as e:
         logging.error(f"⚠️ 기존 저장 파일을 읽는 중 에러 발생, 처음부터 시작합니다: {e}")
         results = []
-        processed_count = 0
+        processed_ids = set()
 
-# 이미 처리된 부분은 슬라이싱하여 건너뛰기
-df_to_process = df.iloc[processed_count:]
+logging.info(f"▶️ 데이터 처리를 시작합니다... (전체 {total_rows}건)")
 
-logging.info(f"▶️ 남은 {len(df_to_process)}건의 데이터 처리를 시작합니다... (전체 {total_rows}건)")
-
-# 실제 처리 루프
-for index, row in df_to_process.iterrows():
+for index, row in df.iterrows():
     
     start_time = time.time()
-    
-    # 원본 데이터의 인덱스는 그대로 유지되므로 진행률 표시에 사용
     current_num = index + 1 
-    logging.info(f"[{current_num}/{total_rows}] 처리 중...")
+    
+    # 🔥 [추가] 현재 행의 공고번호가 이미 처리된 세트에 있다면 건너뜁니다.
+    job_id = row['공고번호'] # 👈 여기에 실제 공고번호 컬럼명을 적어주세요.
+    if job_id in processed_ids:
+        # 매번 로그를 남기면 너무 과하므로, 500건 단위나 혹은 패스 로그 생략 가능
+        if current_num % 500 == 0:
+            logging.info(f"[{current_num}/{total_rows}] 이미 처리된 공고번호({job_id})이므로 건너뜁니다.")
+        continue
+        
+    logging.info(f"[{current_num}/{total_rows}] 처리 중... (공고번호: {job_id})")
     
     clean_text = clean_saramin_text(row['원문']) 
     extracted_data = extract_info(clean_text)
@@ -151,20 +160,19 @@ for index, row in df_to_process.iterrows():
         row_dict = row.to_dict()
         row_dict.update(extracted_data)
         results.append(row_dict)
+        processed_ids.add(job_id) # 🔥 [추가] 성공적으로 처리된 번호 세트에 추가
     
-    # 주기적으로 중간 저장 (예: 50건 단위)
+    # 주기적으로 중간 저장
     if current_num % SAVE_INTERVAL == 0:
         pd.DataFrame(results).to_json(OUTPUT_FILE, orient='records', force_ascii=False, indent=4)
         logging.info(f"💾 [{current_num}/{total_rows}] 데이터 중간 저장 완료!")
     
-    elapsed_time = time.time() - start_time  # 1건 처리에 실제로 걸린 시간 (초)
-    MIN_CYCLE_TIME = 0.65  # 1분당 최대 100개 미만으로 제한하기 위한 최소 주기 (60초 / 92개 기준)
+    elapsed_time = time.time() - start_time
+    MIN_CYCLE_TIME = 0.65
     
-    # 만약 처리가 너무 빨리 끝나서 최소 주기(0.65초)보다 덜 걸렸다면 그 차이만큼 대기
     if elapsed_time < MIN_CYCLE_TIME:
         time.sleep(MIN_CYCLE_TIME - elapsed_time)
     else:
-        # 가끔씩 발생하는 API 부하 분산을 위해 최소한의 미세 딜레이 추가
         time.sleep(0.05)
 
 # 4. 루프 종료 후 최종 결과 저장
